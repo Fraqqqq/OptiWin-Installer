@@ -1,4 +1,4 @@
-# install.ps1 - Instalador de OptiWin
+# install.ps1 - Instalador profesional de OptiWin
 Write-Host "═══════════════════════════════════════════" -ForegroundColor Green
 Write-Host "    OptiWin - Optimizador de Windows" -ForegroundColor Green
 Write-Host "═══════════════════════════════════════════" -ForegroundColor Green
@@ -36,35 +36,43 @@ Invoke-WebRequest -Uri $requirementsUrl -OutFile "$installDir\requirements.txt"
 Write-Host "[OK] requirements.txt descargado" -ForegroundColor Green
 
 # ============================================================
-# 5. VERIFICAR E INSTALAR PYTHON DE FORMA ROBUSTA
+# 5. VERIFICAR E INSTALAR PYTHON EN SILENCIO
 # ============================================================
 Write-Host "[INFO] Verificando Python..." -ForegroundColor Cyan
 
-# Intentar obtener la versión de Python
 $pythonVersion = & python --version 2>&1
 
 if ($LASTEXITCODE -ne 0) {
-    Write-Host "[WARN] Python no está instalado." -ForegroundColor Yellow
-    Write-Host "[INFO] Instalando Python desde la Microsoft Store..." -ForegroundColor Cyan
+    Write-Host "[INFO] Python no está instalado. Instalando automáticamente..." -ForegroundColor Yellow
     
-    # Abrir la página de Python en la Microsoft Store
-    Start-Process "ms-windows-store://pdp/?productid=9PJPW5LDXLZ5"
-    Write-Host ""
-    Write-Host "===================================================" -ForegroundColor Yellow
-    Write-Host "ATENCION: Se abrió la Microsoft Store." -ForegroundColor Yellow
-    Write-Host "1. Hacé clic en INSTALAR (o en OBTENER)." -ForegroundColor Yellow
-    Write-Host "2. Esperá a que termine la instalación." -ForegroundColor Yellow
-    Write-Host "3. CERRÁ la Store y VOLVÉ A ESTA VENTANA." -ForegroundColor Yellow
-    Write-Host "===================================================" -ForegroundColor Yellow
-    Write-Host ""
-    Read-Host "Presioná ENTER cuando hayas terminado de instalar Python"
-
-    # Verificar nuevamente después de la instalación
+    # Descargar el instalador de Python desde la web oficial
+    $pythonUrl = "https://www.python.org/ftp/python/3.12.4/python-3.12.4-amd64.exe"
+    $installerPath = "$env:TEMP\python-installer.exe"
+    
+    Write-Host "[INFO] Descargando Python desde python.org..." -ForegroundColor Cyan
+    Invoke-WebRequest -Uri $pythonUrl -OutFile $installerPath
+    
+    Write-Host "[INFO] Instalando Python (esto puede tomar varios minutos)..." -ForegroundColor Cyan
+    Write-Host "[INFO] Por favor, esperá sin cerrar esta ventana..." -ForegroundColor Yellow
+    
+    # Instalación silenciosa: sin interfaz, agrega al PATH, instala para todos los usuarios
+    $installArgs = "/quiet InstallAllUsers=1 PrependPath=1 Include_test=0"
+    Start-Process -FilePath $installerPath -ArgumentList $installArgs -Wait
+    
+    # Eliminar el instalador
+    Remove-Item $installerPath -Force
+    
+    # Actualizar PATH para que reconozca Python sin reiniciar
+    $env:Path = [System.Environment]::GetEnvironmentVariable("Path", "Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path", "User")
+    
+    Write-Host "[OK] Python instalado correctamente." -ForegroundColor Green
+    
+    # Verificar que Python se haya instalado
     $pythonVersion = & python --version 2>&1
     if ($LASTEXITCODE -ne 0) {
-        Write-Host ""
-        Write-Host "[ERR] No se detectó Python después de la instalación." -ForegroundColor Red
+        Write-Host "[ERR] No se pudo instalar Python automáticamente." -ForegroundColor Red
         Write-Host "Por favor, instalalo manualmente desde python.org" -ForegroundColor Red
+        Write-Host "y volvé a ejecutar este script." -ForegroundColor Red
         Read-Host "Presioná ENTER para salir"
         exit
     }
@@ -72,14 +80,12 @@ if ($LASTEXITCODE -ne 0) {
 
 Write-Host "[OK] Python detectado: $pythonVersion" -ForegroundColor Green
 
-# 6. Verificar e instalar pip
+# 6. Verificar pip
 $pipVersion = & pip --version 2>&1
 if ($LASTEXITCODE -ne 0) {
     Write-Host "[WARN] Pip no encontrado. Instalando..." -ForegroundColor Yellow
     & python -m ensurepip --upgrade
     Write-Host "[OK] Pip instalado" -ForegroundColor Green
-} else {
-    Write-Host "[OK] Pip detectado" -ForegroundColor Green
 }
 
 # 7. Instalar dependencias
@@ -109,10 +115,9 @@ Write-Host ""
 Write-Host "OptiWin se instaló correctamente." -ForegroundColor White
 Write-Host "Abriendo la aplicación..." -ForegroundColor Cyan
 
-# 10. Ejecutar OptiWin automáticamente al finalizar
+# 10. Ejecutar OptiWin automáticamente
 Start-Process "python" -ArgumentList "$installDir\OptiWin.py"
 
 Write-Host "[OK] OptiWin se está ejecutando." -ForegroundColor Green
-Write-Host "Si ves una ventana negra, esperá unos segundos." -ForegroundColor White
 Write-Host ""
 Read-Host "Presioná ENTER para cerrar este instalador"

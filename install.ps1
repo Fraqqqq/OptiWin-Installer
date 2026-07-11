@@ -1,4 +1,4 @@
-# install.ps1 - Instalador profesional de OptiWin
+# install.ps1 - Instalador definitivo de OptiWin
 Write-Host "═══════════════════════════════════════════" -ForegroundColor Green
 Write-Host "    OptiWin - Optimizador de Windows" -ForegroundColor Green
 Write-Host "═══════════════════════════════════════════" -ForegroundColor Green
@@ -36,16 +36,23 @@ Invoke-WebRequest -Uri $requirementsUrl -OutFile "$installDir\requirements.txt"
 Write-Host "[OK] requirements.txt descargado" -ForegroundColor Green
 
 # ============================================================
-# 5. VERIFICAR E INSTALAR PYTHON EN SILENCIO
+# 5. VERIFICAR PYTHON (MÉTODO CORREGIDO)
 # ============================================================
 Write-Host "[INFO] Verificando Python..." -ForegroundColor Cyan
 
-$pythonVersion = & python --version 2>&1
-
-if ($LASTEXITCODE -ne 0) {
+# Probar si Python existe en el sistema
+try {
+    $pythonTest = & python -c "print('ok')" 2>&1
+    if ($pythonTest -match "ok") {
+        $pythonVersion = & python --version 2>&1
+        Write-Host "[OK] Python detectado: $pythonVersion" -ForegroundColor Green
+    } else {
+        throw "Python no encontrado"
+    }
+} catch {
     Write-Host "[INFO] Python no está instalado. Instalando automáticamente..." -ForegroundColor Yellow
     
-    # Descargar el instalador de Python desde la web oficial
+    # Descargar Python desde python.org
     $pythonUrl = "https://www.python.org/ftp/python/3.12.4/python-3.12.4-amd64.exe"
     $installerPath = "$env:TEMP\python-installer.exe"
     
@@ -55,35 +62,43 @@ if ($LASTEXITCODE -ne 0) {
     Write-Host "[INFO] Instalando Python (esto puede tomar varios minutos)..." -ForegroundColor Cyan
     Write-Host "[INFO] Por favor, esperá sin cerrar esta ventana..." -ForegroundColor Yellow
     
-    # Instalación silenciosa: sin interfaz, agrega al PATH, instala para todos los usuarios
+    # Instalación silenciosa
     $installArgs = "/quiet InstallAllUsers=1 PrependPath=1 Include_test=0"
-    Start-Process -FilePath $installerPath -ArgumentList $installArgs -Wait
+    $process = Start-Process -FilePath $installerPath -ArgumentList $installArgs -Wait -PassThru
     
     # Eliminar el instalador
     Remove-Item $installerPath -Force
     
-    # Actualizar PATH para que reconozca Python sin reiniciar
+    # Actualizar PATH
     $env:Path = [System.Environment]::GetEnvironmentVariable("Path", "Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path", "User")
     
-    Write-Host "[OK] Python instalado correctamente." -ForegroundColor Green
-    
-    # Verificar que Python se haya instalado
-    $pythonVersion = & python --version 2>&1
-    if ($LASTEXITCODE -ne 0) {
+    # Verificar que se haya instalado
+    try {
+        $pythonTest = & python -c "print('ok')" 2>&1
+        if ($pythonTest -match "ok") {
+            Write-Host "[OK] Python instalado correctamente." -ForegroundColor Green
+        } else {
+            throw "Fallo la instalación"
+        }
+    } catch {
         Write-Host "[ERR] No se pudo instalar Python automáticamente." -ForegroundColor Red
-        Write-Host "Por favor, instalalo manualmente desde python.org" -ForegroundColor Red
-        Write-Host "y volvé a ejecutar este script." -ForegroundColor Red
+        Write-Host "Descargalo manualmente desde python.org" -ForegroundColor Yellow
+        Write-Host "Y volvé a ejecutar este script." -ForegroundColor Yellow
         Read-Host "Presioná ENTER para salir"
         exit
     }
 }
 
-Write-Host "[OK] Python detectado: $pythonVersion" -ForegroundColor Green
-
 # 6. Verificar pip
-$pipVersion = & pip --version 2>&1
-if ($LASTEXITCODE -ne 0) {
-    Write-Host "[WARN] Pip no encontrado. Instalando..." -ForegroundColor Yellow
+try {
+    $pipTest = & pip --version 2>&1
+    if ($pipTest -match "pip") {
+        Write-Host "[OK] Pip detectado" -ForegroundColor Green
+    } else {
+        throw "Pip no encontrado"
+    }
+} catch {
+    Write-Host "[INFO] Instalando pip..." -ForegroundColor Yellow
     & python -m ensurepip --upgrade
     Write-Host "[OK] Pip instalado" -ForegroundColor Green
 }

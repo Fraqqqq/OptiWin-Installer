@@ -1,4 +1,4 @@
-# install.ps1 - Instalador mejorado de OptiWin
+# install.ps1 - Instalador de OptiWin
 Write-Host "═══════════════════════════════════════════" -ForegroundColor Green
 Write-Host "    OptiWin - Optimizador de Windows" -ForegroundColor Green
 Write-Host "═══════════════════════════════════════════" -ForegroundColor Green

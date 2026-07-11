@@ -38,22 +38,54 @@ Write-Host "[INFO] Descargando requirements.txt..." -ForegroundColor Cyan
 Invoke-WebRequest -Uri $requirementsUrl -OutFile "$installDir\requirements.txt"
 Write-Host "[OK] requirements.txt descargado" -ForegroundColor Green
 
-# Verificar Python
-$python = Get-Command python -ErrorAction SilentlyContinue
-if (-not $python) {
-    Write-Host "[WARN] Python no esta instalado." -ForegroundColor Yellow
-    Write-Host "[INFO] Instalando Python desde Microsoft Store..." -ForegroundColor Cyan
-    Start-Process "ms-windows-store://pdp/?productid=9PJPW5LDXLZ5" -Wait
-    Write-Host "[OK] Instala Python desde la Store y volve a ejecutar este script." -ForegroundColor Green
-    Read-Host "Presiona Enter para salir"
-    exit
+# ============================================
+# VERIFICAR E INSTALAR PYTHON AUTOMÁTICAMENTE
+# ============================================
+Write-Host "[INFO] Verificando Python..." -ForegroundColor Cyan
+
+# Intentar obtener la versión de Python
+$pythonVersion = & python --version 2>&1
+
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "[WARN] Python no está instalado." -ForegroundColor Yellow
+    Write-Host "[INFO] Instalando Python automáticamente..." -ForegroundColor Cyan
+    
+    # Descargar el instalador de Python desde la web oficial
+    $pythonInstallerUrl = "https://www.python.org/ftp/python/3.12.4/python-3.12.4-amd64.exe"
+    $installerPath = "$env:TEMP\python-installer.exe"
+    
+    Write-Host "[INFO] Descargando Python desde python.org..." -ForegroundColor Cyan
+    Invoke-WebRequest -Uri $pythonInstallerUrl -OutFile $installerPath
+    
+    Write-Host "[INFO] Instalando Python (esto puede tomar unos minutos)..." -ForegroundColor Cyan
+    Start-Process -FilePath $installerPath -ArgumentList "/quiet InstallAllUsers=1 PrependPath=1 Include_test=0" -Wait
+    
+    # Eliminar el instalador
+    Remove-Item $installerPath -Force
+    
+    # Actualizar la variable de entorno PATH para que reconozca Python sin reiniciar
+    $env:Path = [System.Environment]::GetEnvironmentVariable("Path", "Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path", "User")
+    
+    Write-Host "[OK] Python instalado correctamente." -ForegroundColor Green
+} else {
+    Write-Host "[OK] Python detectado: $pythonVersion" -ForegroundColor Green
+}
+
+# Verificar pip
+$pipVersion = & pip --version 2>&1
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "[WARN] Pip no encontrado. Instalando pip..." -ForegroundColor Yellow
+    & python -m ensurepip --upgrade
+    Write-Host "[OK] Pip instalado" -ForegroundColor Green
+} else {
+    Write-Host "[OK] Pip detectado" -ForegroundColor Green
 }
 
 # Instalar dependencias
 Write-Host "[INFO] Instalando dependencias de Python..." -ForegroundColor Cyan
 Set-Location $installDir
-python -m pip install --upgrade pip
-pip install -r requirements.txt
+& python -m pip install --upgrade pip
+& pip install -r requirements.txt
 Write-Host "[OK] Dependencias instaladas" -ForegroundColor Green
 
 # Crear acceso directo en el escritorio

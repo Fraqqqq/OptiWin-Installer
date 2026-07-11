@@ -1,6 +1,6 @@
 # ============================================================
 # install.ps1 - Instalador Automático de OptiWin
-# Version: 5.0 - Sin preguntas, abre automáticamente
+# Version: 6.0 - Una sola ventana, sin consola extra
 # ============================================================
 
 Write-Host "═══════════════════════════════════════════" -ForegroundColor Green
@@ -35,10 +35,10 @@ New-Item -ItemType Directory -Path $installDir -Force | Out-Null
 Write-Host "[OK] Directorio creado: $installDir" -ForegroundColor Green
 
 # ============================================================
-# 4. DESCARGAR ARCHIVOS
+# 4. DESCARGAR ARCHIVOS (CON EXTENSIÓN .pyw)
 # ============================================================
-Write-Host "[INFO] Descargando OptiWin.py..." -ForegroundColor Cyan
-Invoke-WebRequest -Uri "$baseUrl/OptiWin.py" -OutFile "$installDir\OptiWin.py"
+Write-Host "[INFO] Descargando OptiWin.pyw..." -ForegroundColor Cyan
+Invoke-WebRequest -Uri "$baseUrl/OptiWin.pyw" -OutFile "$installDir\OptiWin.pyw"
 Write-Host "[OK] Script descargado" -ForegroundColor Green
 
 try {
@@ -166,7 +166,7 @@ if (Test-Path $oldShortcut) {
 }
 
 # ============================================================
-# 11. ABRIR OPTIWIN AUTOMÁTICAMENTE (SIN PREGUNTAR)
+# 11. ABRIR OPTIWIN CON .pyw (SIN CONSOLA)
 # ============================================================
 Write-Host ""
 Write-Host "═══════════════════════════════════════════" -ForegroundColor Green
@@ -176,12 +176,29 @@ Write-Host ""
 Write-Host "OptiWin se instaló correctamente en:" -ForegroundColor White
 Write-Host "  $installDir" -ForegroundColor Gray
 Write-Host ""
-Write-Host "[INFO] Abriendo OptiWin automáticamente..." -ForegroundColor Cyan
+Write-Host "[INFO] Abriendo OptiWin (sin consola extra)..." -ForegroundColor Cyan
 
-# Ejecutar OptiWin
-Start-Process "python" -ArgumentList "$installDir\OptiWin.py"
+# ============================================================
+# EJECUTAR OPTIWIN CON pythonw (SIN VENTANA DE CONSOLA)
+# ============================================================
+# Buscar pythonw.exe en el sistema
+$pythonwPath = Get-Command pythonw -ErrorAction SilentlyContinue
+if ($pythonwPath) {
+    Start-Process $pythonwPath.Source -ArgumentList "$installDir\OptiWin.pyw"
+} else {
+    # Fallback: usar python.exe pero con ventana oculta
+    $pythonPath = Get-Command python -ErrorAction SilentlyContinue
+    if ($pythonPath) {
+        Start-Process $pythonPath.Source -ArgumentList "$installDir\OptiWin.pyw" -WindowStyle Hidden
+    } else {
+        Write-Host "[ERR] No se encontró Python para ejecutar." -ForegroundColor Red
+        Read-Host "Presioná ENTER para salir"
+        exit 1
+    }
+}
 
 Write-Host "[OK] OptiWin se está ejecutando." -ForegroundColor Green
 Write-Host ""
-Write-Host "Presioná ENTER para cerrar este instalador." -ForegroundColor Gray
-Read-Host
+Write-Host "[INFO] Solo deberías ver la ventana de OptiWin." -ForegroundColor Gray
+Write-Host ""
+Read-Host "Presioná ENTER para cerrar este instalador"

@@ -1,6 +1,6 @@
 # ============================================================
-# install.ps1 - Instalador de OptiWin (SIN ACCESO DIRECTO)
-# Version: 4.0 - No crea accesos directos
+# install.ps1 - Instalador Automático de OptiWin
+# Version: 5.0 - Sin preguntas, abre automáticamente
 # ============================================================
 
 Write-Host "═══════════════════════════════════════════" -ForegroundColor Green
@@ -166,7 +166,7 @@ if (Test-Path $oldShortcut) {
 }
 
 # ============================================================
-# 11. EJECUTAR OPTIWIN DIRECTAMENTE (SIN ACCESO DIRECTO)
+# 11. ABRIR OPTIWIN AUTOMÁTICAMENTE (SIN PREGUNTAR)
 # ============================================================
 Write-Host ""
 Write-Host "═══════════════════════════════════════════" -ForegroundColor Green
@@ -176,20 +176,12 @@ Write-Host ""
 Write-Host "OptiWin se instaló correctamente en:" -ForegroundColor White
 Write-Host "  $installDir" -ForegroundColor Gray
 Write-Host ""
-Write-Host "[INFO] NO se creó acceso directo en el escritorio." -ForegroundColor Yellow
-Write-Host ""
+Write-Host "[INFO] Abriendo OptiWin automáticamente..." -ForegroundColor Cyan
 
-# Preguntar si quiere abrir OptiWin ahora
-$response = Read-Host "¿Querés abrir OptiWin ahora? (S/N)"
-if ($response -eq "S" -or $response -eq "s" -or $response -eq "SI" -or $response -eq "si") {
-    Write-Host "[INFO] Abriendo OptiWin..." -ForegroundColor Cyan
-    Start-Process "python" -ArgumentList "$installDir\OptiWin.py"
-    Write-Host "[OK] OptiWin se está ejecutando." -ForegroundColor Green
-} else {
-    Write-Host "[INFO] Para ejecutar OptiWin, andá a:" -ForegroundColor Cyan
-    Write-Host "  cd $installDir" -ForegroundColor Gray
-    Write-Host "  python OptiWin.py" -ForegroundColor Gray
-}
+# Ejecutar OptiWin
+Start-Process "python" -ArgumentList "$installDir\OptiWin.py"
 
+Write-Host "[OK] OptiWin se está ejecutando." -ForegroundColor Green
 Write-Host ""
-Read-Host "Presioná ENTER para salir"
+Write-Host "Presioná ENTER para cerrar este instalador." -ForegroundColor Gray
+Read-Host

@@ -1,6 +1,6 @@
 # ============================================================
-# install.ps1 - Instalador Rápido de OptiWin (Sin Rastros)
-# Version: 3.1 - Ejecución directa, autolimpieza
+# install.ps1 - Instalador de OptiWin (SIN ACCESO DIRECTO)
+# Version: 4.0 - No crea accesos directos
 # ============================================================
 
 Write-Host "═══════════════════════════════════════════" -ForegroundColor Green
@@ -24,162 +24,172 @@ if (-not $isAdmin) {
 $repoOwner = "Fraqqqq"
 $repoName = "OptiWin"
 $baseUrl = "https://raw.githubusercontent.com/$repoOwner/$repoName/main"
-$tempDir = "$env:TEMP\OptiWin_$(Get-Random)"
-$pythonUrl = "https://www.python.org/ftp/python/3.12.4/python-3.12.4-embed-amd64.zip"
+$installDir = "$env:USERPROFILE\OptiWin"
 
-Write-Host "[INFO] Iniciando instalación rápida..." -ForegroundColor Cyan
+Write-Host "[INFO] Instalando OptiWin..." -ForegroundColor Cyan
 
 # ============================================================
-# 3. FUNCIÓN: DETECTAR PYTHON EXISTENTE
+# 3. CREAR DIRECTORIO DE INSTALACIÓN
 # ============================================================
-function Get-PythonPath {
-    # Buscar Python en ubicaciones comunes
-    $paths = @(
-        "$env:LOCALAPPDATA\Programs\Python\Python312\python.exe",
-        "$env:LOCALAPPDATA\Programs\Python\Python311\python.exe",
-        "$env:ProgramFiles\Python312\python.exe",
-        "$env:ProgramFiles\Python311\python.exe",
-        (Get-Command python -ErrorAction SilentlyContinue).Source
-    )
-    
-    foreach ($p in $paths) {
-        if ($p -and (Test-Path $p)) {
-            return $p
-        }
-    }
-    
-    # Intentar con el comando python
-    try {
-        $result = & python -c "import sys; print(sys.executable)" 2>&1
-        if ($LASTEXITCODE -eq 0) {
-            return $result.Trim()
-        }
-    } catch {
-        # Ignorar
-    }
-    
-    return $null
+New-Item -ItemType Directory -Path $installDir -Force | Out-Null
+Write-Host "[OK] Directorio creado: $installDir" -ForegroundColor Green
+
+# ============================================================
+# 4. DESCARGAR ARCHIVOS
+# ============================================================
+Write-Host "[INFO] Descargando OptiWin.py..." -ForegroundColor Cyan
+Invoke-WebRequest -Uri "$baseUrl/OptiWin.py" -OutFile "$installDir\OptiWin.py"
+Write-Host "[OK] Script descargado" -ForegroundColor Green
+
+try {
+    Write-Host "[INFO] Descargando requirements.txt..." -ForegroundColor Cyan
+    Invoke-WebRequest -Uri "$baseUrl/requirements.txt" -OutFile "$installDir\requirements.txt" -ErrorAction Stop
+    Write-Host "[OK] requirements.txt descargado" -ForegroundColor Green
+} catch {
+    Write-Host "[INFO] No hay requirements.txt, continuando..." -ForegroundColor Yellow
 }
 
 # ============================================================
-# 4. FUNCIÓN: INSTALAR PYTHON PORTABLE
+# 5. FUNCIÓN: VERIFICAR PYTHON
 # ============================================================
-function Install-PythonPortable {
-    Write-Host "[INFO] Instalando Python portable (rápido)..." -ForegroundColor Yellow
-    
-    New-Item -ItemType Directory -Path $tempDir -Force | Out-Null
-    
-    Write-Host "[INFO] Descargando Python..." -ForegroundColor Cyan
+function Test-PythonInstalled {
     try {
-        Invoke-WebRequest -Uri $pythonUrl -OutFile "$tempDir\python.zip" -ErrorAction Stop
+        $result = & python -c "print('ok')" 2>&1
+        return $result -match "ok"
     } catch {
-        $pythonUrl = "https://www.python.org/ftp/python/3.11.9/python-3.11.9-embed-amd64.zip"
-        Invoke-WebRequest -Uri $pythonUrl -OutFile "$tempDir\python.zip"
+        return $false
     }
-    
-    Write-Host "[INFO] Descomprimiendo..." -ForegroundColor Cyan
-    Expand-Archive -Path "$tempDir\python.zip" -DestinationPath "$tempDir\python" -Force
-    
-    $pythonExe = "$tempDir\python\python.exe"
-    
-    # Configurar para pip
-    $pthContent = "import site`nsite.addsitedir('$tempDir\python\Lib\site-packages')"
-    $pthContent | Out-File -FilePath "$tempDir\python\python312._pth" -Encoding ASCII
-    
-    # Instalar pip
-    Invoke-WebRequest -Uri "https://bootstrap.pypa.io/get-pip.py" -OutFile "$tempDir\get-pip.py"
-    & $pythonExe "$tempDir\get-pip.py" --no-warn-script-location 2>&1 | Out-Null
-    
-    return $pythonExe
 }
 
 # ============================================================
-# 5. FUNCIÓN: EJECUTAR OPTIWIN
+# 6. FUNCIÓN: INSTALAR PYTHON SILENCIOSO
 # ============================================================
-function Run-OptiWin {
-    param($pythonExe, $scriptPath)
+function Install-PythonSilent {
+    Write-Host "[INFO] Python no encontrado. Instalando..." -ForegroundColor Yellow
     
-    Write-Host "[INFO] Ejecutando OptiWin..." -ForegroundColor Cyan
+    $pythonUrl = "https://www.python.org/ftp/python/3.12.4/python-3.12.4-amd64.exe"
+    $installerPath = "$env:TEMP\python-installer.exe"
     
-    # Ejecutar en una nueva ventana
-    $process = Start-Process -FilePath $pythonExe -ArgumentList $scriptPath -WindowStyle Normal -PassThru
+    Write-Host "[INFO] Descargando Python desde python.org..." -ForegroundColor Cyan
+    try {
+        Invoke-WebRequest -Uri $pythonUrl -OutFile $installerPath -ErrorAction Stop
+    } catch {
+        Write-Host "[ERR] No se pudo descargar Python." -ForegroundColor Red
+        Write-Host "[INFO] Instalá Python manualmente desde python.org" -ForegroundColor Yellow
+        Read-Host "Presioná ENTER para salir"
+        exit 1
+    }
     
-    Start-Sleep -Seconds 1
-    if (-not $process.HasExited) {
-        Write-Host "[OK] OptiWin ejecutándose." -ForegroundColor Green
+    Write-Host "[INFO] Instalando Python (esto puede tomar varios minutos)..." -ForegroundColor Cyan
+    
+    $installArgs = "/quiet InstallAllUsers=1 PrependPath=1 Include_test=0"
+    Start-Process -FilePath $installerPath -ArgumentList $installArgs -Wait
+    
+    Remove-Item $installerPath -Force -ErrorAction SilentlyContinue
+    $env:Path = [System.Environment]::GetEnvironmentVariable("Path", "Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path", "User")
+    Start-Sleep -Seconds 5
+    
+    if (Test-PythonInstalled) {
+        Write-Host "[OK] Python instalado correctamente." -ForegroundColor Green
         return $true
+    } else {
+        Write-Host "[ERR] No se pudo instalar Python." -ForegroundColor Red
+        return $false
     }
-    return $false
 }
 
 # ============================================================
-# 6. FUNCIÓN: LIMPIEZA AUTOMÁTICA
-# ============================================================
-function Cleanup-After {
-    param($paths)
-    
-    # Programar eliminación en segundo plano
-    $script = {
-        Start-Sleep -Seconds 15
-        foreach ($path in $using:paths) {
-            if (Test-Path $path) {
-                Remove-Item -Path $path -Recurse -Force -ErrorAction SilentlyContinue
-            }
-        }
-    }
-    Start-Job -ScriptBlock $script | Out-Null
-}
-
-# ============================================================
-# 7. EJECUCIÓN PRINCIPAL
+# 7. VERIFICAR PYTHON
 # ============================================================
 Write-Host ""
+Write-Host "[INFO] Verificando Python..." -ForegroundColor Cyan
 
-# Buscar Python existente
-$pythonExe = Get-PythonPath
-
-if (-not $pythonExe) {
-    $pythonExe = Install-PythonPortable
+$pythonOk = Test-PythonInstalled
+if (-not $pythonOk) {
+    $pythonOk = Install-PythonSilent
 }
 
-if (-not $pythonExe) {
+if (-not $pythonOk) {
     Write-Host "[ERR] No se pudo instalar Python." -ForegroundColor Red
+    Write-Host "Instalalo manualmente desde: https://www.python.org/downloads/" -ForegroundColor Yellow
     Read-Host "Presioná ENTER para salir"
     exit 1
 }
 
-# Directorio temporal para OptiWin
-$tempOptiWin = "$env:TEMP\OptiWin_Run"
-New-Item -ItemType Directory -Path $tempOptiWin -Force | Out-Null
-
-# Descargar OptiWin
-$scriptPath = "$tempOptiWin\OptiWin.py"
-Write-Host "[INFO] Descargando OptiWin..." -ForegroundColor Cyan
-Invoke-WebRequest -Uri "$baseUrl/OptiWin.py" -OutFile $scriptPath
-
-# Instalar dependencias si existen
+# ============================================================
+# 8. VERIFICAR PIP
+# ============================================================
+Write-Host "[INFO] Verificando pip..." -ForegroundColor Cyan
 try {
-    $requirementsPath = "$tempOptiWin\requirements.txt"
-    Invoke-WebRequest -Uri "$baseUrl/requirements.txt" -OutFile $requirementsPath -ErrorAction Stop
-    
-    Write-Host "[INFO] Instalando dependencias..." -ForegroundColor Cyan
-    $pipPath = "$tempDir\python\Scripts\pip.exe"
-    if (Test-Path $pipPath) {
-        & $pipPath install -r $requirementsPath --quiet --no-warn-script-location 2>&1 | Out-Null
+    $pipTest = & pip --version 2>&1
+    if ($pipTest -notmatch "pip") {
+        throw "Pip no encontrado"
     }
+    Write-Host "[OK] Pip detectado" -ForegroundColor Green
 } catch {
-    # No hay requirements.txt, continuar
+    Write-Host "[INFO] Instalando pip..." -ForegroundColor Yellow
+    & python -m ensurepip --upgrade 2>&1 | Out-Null
+    Write-Host "[OK] Pip instalado" -ForegroundColor Green
 }
 
-# Ejecutar OptiWin
-Write-Host ""
-Run-OptiWin -pythonExe $pythonExe -scriptPath $scriptPath
+# ============================================================
+# 9. INSTALAR DEPENDENCIAS
+# ============================================================
+Write-Host "[INFO] Instalando dependencias de Python..." -ForegroundColor Cyan
+Set-Location $installDir
+& python -m pip install --upgrade pip 2>&1 | Out-Null
 
-# Programar limpieza automática (NO deja rastros)
-Cleanup-After -paths @($tempDir, $tempOptiWin)
+if (Test-Path "$installDir\requirements.txt") {
+    & pip install -r requirements.txt 2>&1
+    if ($LASTEXITCODE -eq 0) {
+        Write-Host "[OK] Dependencias instaladas" -ForegroundColor Green
+    } else {
+        Write-Host "[WARN] Error en algunas dependencias. Continuando..." -ForegroundColor Yellow
+    }
+} else {
+    # Instalar dependencias mínimas
+    $deps = @("customtkinter", "psutil", "pywin32")
+    foreach ($dep in $deps) {
+        & pip install $dep --quiet 2>&1 | Out-Null
+    }
+    Write-Host "[OK] Dependencias básicas instaladas" -ForegroundColor Green
+}
+
+# ============================================================
+# 10. ELIMINAR ACCESO DIRECTO EXISTENTE (SI EXISTE)
+# ============================================================
+$desktop = [Environment]::GetFolderPath("Desktop")
+$oldShortcut = "$desktop\OptiWin.lnk"
+if (Test-Path $oldShortcut) {
+    Remove-Item $oldShortcut -Force
+    Write-Host "[OK] Acceso directo anterior eliminado" -ForegroundColor Yellow
+}
+
+# ============================================================
+# 11. EJECUTAR OPTIWIN DIRECTAMENTE (SIN ACCESO DIRECTO)
+# ============================================================
+Write-Host ""
+Write-Host "═══════════════════════════════════════════" -ForegroundColor Green
+Write-Host "[OK] INSTALACION COMPLETADA CON EXITO!" -ForegroundColor Green
+Write-Host "═══════════════════════════════════════════" -ForegroundColor Green
+Write-Host ""
+Write-Host "OptiWin se instaló correctamente en:" -ForegroundColor White
+Write-Host "  $installDir" -ForegroundColor Gray
+Write-Host ""
+Write-Host "[INFO] NO se creó acceso directo en el escritorio." -ForegroundColor Yellow
+Write-Host ""
+
+# Preguntar si quiere abrir OptiWin ahora
+$response = Read-Host "¿Querés abrir OptiWin ahora? (S/N)"
+if ($response -eq "S" -or $response -eq "s" -or $response -eq "SI" -or $response -eq "si") {
+    Write-Host "[INFO] Abriendo OptiWin..." -ForegroundColor Cyan
+    Start-Process "python" -ArgumentList "$installDir\OptiWin.py"
+    Write-Host "[OK] OptiWin se está ejecutando." -ForegroundColor Green
+} else {
+    Write-Host "[INFO] Para ejecutar OptiWin, andá a:" -ForegroundColor Cyan
+    Write-Host "  cd $installDir" -ForegroundColor Gray
+    Write-Host "  python OptiWin.py" -ForegroundColor Gray
+}
 
 Write-Host ""
-Write-Host "[OK] OptiWin instalado y ejecutándose." -ForegroundColor Green
-Write-Host "[INFO] No se crearon archivos permanentes." -ForegroundColor Gray
-Write-Host ""
-Read-Host "Presioná ENTER para cerrar"
+Read-Host "Presioná ENTER para salir"

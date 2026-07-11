@@ -1,6 +1,6 @@
 # ============================================================
-# install.ps1 - Instalador Rápido de OptiWin
-# Version: 3.0 - Ejecución directa sin rastros
+# install.ps1 - Instalador Rápido de OptiWin (Sin Rastros)
+# Version: 3.1 - Ejecución directa, autolimpieza
 # ============================================================
 
 Write-Host "═══════════════════════════════════════════" -ForegroundColor Green
@@ -27,31 +27,10 @@ $baseUrl = "https://raw.githubusercontent.com/$repoOwner/$repoName/main"
 $tempDir = "$env:TEMP\OptiWin_$(Get-Random)"
 $pythonUrl = "https://www.python.org/ftp/python/3.12.4/python-3.12.4-embed-amd64.zip"
 
-Write-Host "[INFO] Iniciando..." -ForegroundColor Cyan
+Write-Host "[INFO] Iniciando instalación rápida..." -ForegroundColor Cyan
 
 # ============================================================
-# 3. FUNCIÓN: DESCARGAR ARCHIVOS EN PARALELO
-# ============================================================
-function Download-Files {
-    param($urls)
-    
-    $jobs = @()
-    foreach ($url in $urls) {
-        $fileName = [System.IO.Path]::GetFileName($url)
-        $outputPath = "$tempDir\$fileName"
-        
-        $jobs += Start-Job -ScriptBlock {
-            param($url, $output)
-            Invoke-WebRequest -Uri $url -OutFile $output -ErrorAction SilentlyContinue
-        } -ArgumentList $url, $outputPath
-    }
-    
-    $jobs | Wait-Job | Out-Null
-    $jobs | Remove-Job
-}
-
-# ============================================================
-# 4. FUNCIÓN: DETECTAR PYTHON
+# 3. FUNCIÓN: DETECTAR PYTHON EXISTENTE
 # ============================================================
 function Get-PythonPath {
     # Buscar Python en ubicaciones comunes
@@ -83,98 +62,76 @@ function Get-PythonPath {
 }
 
 # ============================================================
-# 5. FUNCIÓN: INSTALAR PYTHON PORTABLE (RÁPIDO)
+# 4. FUNCIÓN: INSTALAR PYTHON PORTABLE
 # ============================================================
 function Install-PythonPortable {
-    Write-Host "[INFO] Instalando Python portable..." -ForegroundColor Yellow
+    Write-Host "[INFO] Instalando Python portable (rápido)..." -ForegroundColor Yellow
     
-    # Crear directorio temporal
     New-Item -ItemType Directory -Path $tempDir -Force | Out-Null
     
-    # Descargar Python portable (más rápido que el instalador completo)
     Write-Host "[INFO] Descargando Python..." -ForegroundColor Cyan
     try {
         Invoke-WebRequest -Uri $pythonUrl -OutFile "$tempDir\python.zip" -ErrorAction Stop
     } catch {
-        # Fallback a versión más pequeña
         $pythonUrl = "https://www.python.org/ftp/python/3.11.9/python-3.11.9-embed-amd64.zip"
         Invoke-WebRequest -Uri $pythonUrl -OutFile "$tempDir\python.zip"
     }
     
-    # Descomprimir
-    Write-Host "[INFO] Descomprimiendo Python..." -ForegroundColor Cyan
+    Write-Host "[INFO] Descomprimiendo..." -ForegroundColor Cyan
     Expand-Archive -Path "$tempDir\python.zip" -DestinationPath "$tempDir\python" -Force
     
-    # Configurar Python para que funcione sin instalación
     $pythonExe = "$tempDir\python\python.exe"
     
-    # Crear archivo de configuración para pip
+    # Configurar para pip
     $pthContent = "import site`nsite.addsitedir('$tempDir\python\Lib\site-packages')"
     $pthContent | Out-File -FilePath "$tempDir\python\python312._pth" -Encoding ASCII
     
-    # Descargar get-pip.py
+    # Instalar pip
     Invoke-WebRequest -Uri "https://bootstrap.pypa.io/get-pip.py" -OutFile "$tempDir\get-pip.py"
-    
-    # Instalar pip en el Python portable
     & $pythonExe "$tempDir\get-pip.py" --no-warn-script-location 2>&1 | Out-Null
     
     return $pythonExe
 }
 
 # ============================================================
-# 6. FUNCIÓN: INSTALAR DEPENDENCIAS RÁPIDO
-# ============================================================
-function Install-DependenciesFast {
-    param($pythonExe, $requirementsPath)
-    
-    Write-Host "[INFO] Instalando dependencias..." -ForegroundColor Cyan
-    
-    # Instalar solo las necesarias en paralelo
-    $deps = @("customtkinter", "psutil", "pywin32")
-    $pipPath = "$tempDir\python\Scripts\pip.exe"
-    
-    foreach ($dep in $deps) {
-        & $pipPath install $dep --quiet --no-warn-script-location 2>&1 | Out-Null
-    }
-}
-
-# ============================================================
-# 7. FUNCIÓN: EJECUTAR OPTIWIN DIRECTAMENTE
+# 5. FUNCIÓN: EJECUTAR OPTIWIN
 # ============================================================
 function Run-OptiWin {
     param($pythonExe, $scriptPath)
     
     Write-Host "[INFO] Ejecutando OptiWin..." -ForegroundColor Cyan
     
-    # Ejecutar directamente en una nueva ventana
+    # Ejecutar en una nueva ventana
     $process = Start-Process -FilePath $pythonExe -ArgumentList $scriptPath -WindowStyle Normal -PassThru
     
-    # Esperar un momento y verificar que se abrió
     Start-Sleep -Seconds 1
     if (-not $process.HasExited) {
         Write-Host "[OK] OptiWin ejecutándose." -ForegroundColor Green
         return $true
     }
-    
     return $false
 }
 
 # ============================================================
-# 8. FUNCIÓN: LIMPIAR RASTROS
+# 6. FUNCIÓN: LIMPIEZA AUTOMÁTICA
 # ============================================================
-function Cleanup-Temp {
-    param($path)
+function Cleanup-After {
+    param($paths)
     
-    # Programar eliminación al cerrar PowerShell
+    # Programar eliminación en segundo plano
     $script = {
-        Start-Sleep -Seconds 10
-        Remove-Item -Path $using:path -Recurse -Force -ErrorAction SilentlyContinue
+        Start-Sleep -Seconds 15
+        foreach ($path in $using:paths) {
+            if (Test-Path $path) {
+                Remove-Item -Path $path -Recurse -Force -ErrorAction SilentlyContinue
+            }
+        }
     }
     Start-Job -ScriptBlock $script | Out-Null
 }
 
 # ============================================================
-# 9. EJECUCIÓN PRINCIPAL
+# 7. EJECUCIÓN PRINCIPAL
 # ============================================================
 Write-Host ""
 
@@ -182,7 +139,6 @@ Write-Host ""
 $pythonExe = Get-PythonPath
 
 if (-not $pythonExe) {
-    # Instalar Python portable
     $pythonExe = Install-PythonPortable
 }
 
@@ -192,30 +148,24 @@ if (-not $pythonExe) {
     exit 1
 }
 
-# Crear directorio temporal para OptiWin
-$tempOptiWin = "$env:TEMP\OptiWin"
+# Directorio temporal para OptiWin
+$tempOptiWin = "$env:TEMP\OptiWin_Run"
 New-Item -ItemType Directory -Path $tempOptiWin -Force | Out-Null
 
-# Descargar OptiWin (si es Python portable, descargar a su carpeta)
+# Descargar OptiWin
 $scriptPath = "$tempOptiWin\OptiWin.py"
-
 Write-Host "[INFO] Descargando OptiWin..." -ForegroundColor Cyan
 Invoke-WebRequest -Uri "$baseUrl/OptiWin.py" -OutFile $scriptPath
 
-# Si existe requirements.txt, instalar dependencias
+# Instalar dependencias si existen
 try {
-    Invoke-WebRequest -Uri "$baseUrl/requirements.txt" -OutFile "$tempOptiWin\requirements.txt" -ErrorAction Stop
-    Write-Host "[INFO] Instalando dependencias..." -ForegroundColor Cyan
+    $requirementsPath = "$tempOptiWin\requirements.txt"
+    Invoke-WebRequest -Uri "$baseUrl/requirements.txt" -OutFile $requirementsPath -ErrorAction Stop
     
+    Write-Host "[INFO] Instalando dependencias..." -ForegroundColor Cyan
     $pipPath = "$tempDir\python\Scripts\pip.exe"
     if (Test-Path $pipPath) {
-        & $pipPath install -r "$tempOptiWin\requirements.txt" --quiet --no-warn-script-location 2>&1 | Out-Null
-    } else {
-        # Si no hay pip, instalar dependencias básicas
-        $deps = @("customtkinter", "psutil", "pywin32")
-        foreach ($dep in $deps) {
-            & $pipPath install $dep --quiet --no-warn-script-location 2>&1 | Out-Null
-        }
+        & $pipPath install -r $requirementsPath --quiet --no-warn-script-location 2>&1 | Out-Null
     }
 } catch {
     # No hay requirements.txt, continuar
@@ -225,12 +175,8 @@ try {
 Write-Host ""
 Run-OptiWin -pythonExe $pythonExe -scriptPath $scriptPath
 
-# Limpiar después de 30 segundos
-Start-Job -ScriptBlock {
-    Start-Sleep -Seconds 30
-    Remove-Item -Path $using:tempDir -Recurse -Force -ErrorAction SilentlyContinue
-    Remove-Item -Path $using:tempOptiWin -Recurse -Force -ErrorAction SilentlyContinue
-} | Out-Null
+# Programar limpieza automática (NO deja rastros)
+Cleanup-After -paths @($tempDir, $tempOptiWin)
 
 Write-Host ""
 Write-Host "[OK] OptiWin instalado y ejecutándose." -ForegroundColor Green
